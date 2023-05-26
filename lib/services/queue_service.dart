@@ -104,9 +104,32 @@ class QueueService {
         _queueServiceLogger.finer("Offset to current track was $offset");
 
         await _applySkipToTrackByOffset(offset, updateExternalQueues: false);
+
+        // // check if queue was looped or if it's a simple skip
+        // if (offset == -_queuePreviousTracks.length && _loopMode == LoopMode.all) {
+        //   _queueServiceLogger.finer("Detected looping while auto advancing");
+        //   await _applyLoopQueue();
+        //   // _queuePreviousTracks.clear();
+        //   // await pushQueueToExternalQueues();
+        // } else {
+        //   await _applySkipToTrackByOffset(offset, updateExternalQueues: false);
+        // }
+
       } else {
         _queueServiceLogger.finer("Current track is correct");
       }
+
+      // // check if the current track is the last track in the queue
+      // if (_queueAudioSourceIndex == _queueAudioSource.sequence.length - 1) {
+      //   _queueServiceLogger.finer("Current track is the last track in the queue");
+      //   if (_loopMode == LoopMode.all) {
+      //     // add first track to _queueAudioSource
+      //     _queueAudioSource.add(
+      //       await _mediaItemToAudioSource(_order.items[_playbackOrder == PlaybackOrder.shuffled ? _order.shuffledOrder[0] : _order.linearOrder[0]].item)
+      //     );
+      //     _queueServiceLogger.finer("Appended looping track to _queueAudioSource");
+      //   }
+      // }
 
     });
 
@@ -116,7 +139,7 @@ class QueueService {
       previousTrackCallback: _applyPreviousTrack,
       skipToIndexCallback: _applySkipToTrackByOffset,
     );
-    
+
   }
 
   Future<bool> _applyNextTrack({bool eventFromPlayer = false}) async {
@@ -140,8 +163,8 @@ class QueueService {
 
       return false; // perform the skip
     } if (
+      loopMode == LoopMode.all &&
       (_queue.length + _queueNextUp.length == 0)
-      && loopMode == LoopMode.all
     ) {
 
       await _applyLoopQueue();
@@ -406,7 +429,10 @@ class QueueService {
       _queueAudioSourceIndex = 0;
       _audioHandler.setNextInitialIndex(_queueAudioSourceIndex);
 
-      _queueAudioSource = ConcatenatingAudioSource(children: []);
+      _queueAudioSource = ConcatenatingAudioSource(
+        children: [],
+        useLazyPreparation: true,
+      );
       await _queueAudioSource.add(await _mediaItemToAudioSource(_currentTrack!.item));
 
       for (final queueItem in _queue) {
@@ -526,22 +552,12 @@ class QueueService {
       // handle enabling loop all when the queue is empty
       if (mode == LoopMode.all && (_queue.length + _queueNextUp.length == 0)) {
         // _applyLoopQueue();
-      } else if (mode != LoopMode.all) {
-        // find current track in `_order` and set the queue to the items after it
-        int currentTrackIndex = _order.items.indexOf(_currentTrack!);
-        int currentTrackOrderIndex = (_playbackOrder == PlaybackOrder.linear ? _order.linearOrder : _order.shuffledOrder).indexWhere((trackIndex) => trackIndex == currentTrackIndex);
-        // use indices of current playback order to get the items after the current track
-        List<int> itemsAfterCurrentTrack = (_playbackOrder == PlaybackOrder.linear ? _order.linearOrder : _order.shuffledOrder).sublist(currentTrackOrderIndex+1);
-        // add items to queue
-        _queue.clear();
-        for (int itemIndex in itemsAfterCurrentTrack) {
-          _queue.add(_order.items[itemIndex]);
-        }
-
-        _logQueues(message: "after looping");
+      } else if (mode == LoopMode.none) {
 
         // update external queues
-        // pushQueueToExternalQueues();
+        pushQueueToExternalQueues().then((value) {
+          _logQueues(message: "after disabling looping");
+        });
 
       }
     }
