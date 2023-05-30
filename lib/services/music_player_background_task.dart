@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:logging/logging.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../models/finamp_models.dart';
 import '../models/jellyfin_models.dart';
@@ -37,7 +38,8 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler {
   final _jellyfinApiHelper = GetIt.instance<JellyfinApiHelper>();
   final _finampUserHelper = GetIt.instance<FinampUserHelper>();
 
-  final _playbackEventStreamController = StreamController<PlaybackEvent>(); 
+  final _playbackEventStreamController = BehaviorSubject<PlaybackEvent>(); 
+  final _currentIndexStreamController = BehaviorSubject<int?>(); 
 
   /// Set when shuffle mode is changed. If true, [onUpdateQueue] will create a
   /// shuffled [ConcatenatingAudioSource].
@@ -97,6 +99,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler {
     });
 
     _player.currentIndexStream.listen((event) async {
+      _currentIndexStreamController.add(event);
       if (event == null) return;
 
       _audioServiceBackgroundTaskLogger.info("index event received, new index: $event");
@@ -149,8 +152,12 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler {
     _queueCallbackSkipToIndexCallback = skipToIndexCallback;
   }
 
-  Stream<PlaybackEvent> getPlaybackEventStream() {
-    return _playbackEventStreamController.stream;
+  BehaviorSubject<PlaybackEvent> getPlaybackEventStream() {
+    return _playbackEventStreamController;
+  }
+
+  BehaviorSubject<int?> getCurrentIndexStream() {
+    return _currentIndexStreamController;
   }
 
   Future<void> initializeAudioSource(ConcatenatingAudioSource source) async {

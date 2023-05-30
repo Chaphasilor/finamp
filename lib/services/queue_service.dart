@@ -46,6 +46,8 @@ class QueueService {
     queue: [],
   )); 
 
+  bool _appendedLoopingTrack = false;
+
   // external queue state
 
   // the audio source used by the player. The first X items of all internal queues are merged together into this source, so that all player features, like gapless playback, are supported
@@ -59,9 +61,20 @@ class QueueService {
 
     _audioHandler.getPlaybackEventStream().listen((event) async {
 
-      int indexDifference = (event.currentIndex ?? 0) - _queueAudioSourceIndex;
+    });
 
-      _queueServiceLogger.finer("Play queue index changed, difference: $indexDifference");
+    _audioHandler.getCurrentIndexStream().listen((currentIndex) async {
+      if (currentIndex == null) {
+        _queueServiceLogger.finer("Current index changed: null");
+        _queueServiceLogger.finer("No track is playing");
+        return;
+      }
+
+      _queueServiceLogger.finer("Current index changed: currentIndex");
+
+      int indexDifference = currentIndex - _queueAudioSourceIndex;
+
+      _queueServiceLogger.finer("Play queue index changed, difference: $indexDifference, sequence length: ${_queueAudioSource.sequence.length}");
 
       if (indexDifference == 0) {
         //TODO figure out a way to detect looped tracks (loopMode == LoopMode.one) to add them to the playback history
@@ -82,7 +95,7 @@ class QueueService {
       
       }
 
-      _queueAudioSourceIndex = event.currentIndex ?? 0;
+      _queueAudioSourceIndex = currentIndex;
 
       MediaItem currentItem = (_queueAudioSource.sequence[_queueAudioSourceIndex].tag as MediaItem);
       if (currentItem.id != _currentTrack?.item.id) {
@@ -119,18 +132,26 @@ class QueueService {
         _queueServiceLogger.finer("Current track is correct");
       }
 
-      // // check if the current track is the last track in the queue
-      // if (_queueAudioSourceIndex == _queueAudioSource.sequence.length - 1) {
-      //   _queueServiceLogger.finer("Current track is the last track in the queue");
-      //   if (_loopMode == LoopMode.all) {
-      //     // add first track to _queueAudioSource
-      //     _queueAudioSource.add(
-      //       await _mediaItemToAudioSource(_order.items[_playbackOrder == PlaybackOrder.shuffled ? _order.shuffledOrder[0] : _order.linearOrder[0]].item)
-      //     );
-      //     _queueServiceLogger.finer("Appended looping track to _queueAudioSource");
-      //   }
-      // }
-
+      if (_appendedLoopingTrack) {
+        // await _applyLoopQueue();
+        _appendedLoopingTrack = false;
+        await _replaceWholeQueueWithOrder(order: _order);
+        // await pushQueueToExternalQueues();
+      } else {
+        // check if the current track is the last track in the queue
+        if (_queueAudioSourceIndex == _queueAudioSource.sequence.length) {
+          _queueServiceLogger.finer("Current track is the last track in the queue ($_queueAudioSourceIndex)");
+          if (_loopMode == LoopMode.all) {
+            // add first track to _queueAudioSource
+            _queueAudioSource.add(
+              await _mediaItemToAudioSource(_order.items[_playbackOrder == PlaybackOrder.shuffled ? _order.shuffledOrder[0] : _order.linearOrder[0]].item)
+            );
+            _appendedLoopingTrack = true;
+            _queueServiceLogger.finer("Appended looping track to _queueAudioSource");
+          }
+        }
+      }
+      
     });
 
     // register callbacks
@@ -177,7 +198,7 @@ class QueueService {
       return false;
     }
     
-    await pushQueueToExternalQueues();
+    // await pushQueueToExternalQueues();
     if (addCurrentTrackToPreviousTracks) {
       _queuePreviousTracks.add(_currentTrack!);
     }
@@ -187,6 +208,7 @@ class QueueService {
 
     _logQueues(message: "after skipping forward");
 
+    _audioHandler.queue.add(_queuePreviousTracks.followedBy([_currentTrack!]).followedBy(_queue).map((e) => e.item).toList());
     _queueStream.add(getQueue());
 
     // _queueAudioSourceIndex++; // increment external queue index so we can detect that the change has already been handled once
@@ -456,6 +478,58 @@ class QueueService {
     }
   }
 
+  /// Replaces the queue with the given list of items. If startAtIndex is specified, Any items below it
+  /// will be ignored. This is used for when the user taps in the middle of an album to start from that point.
+  Future<void> _replaceWholeQueueWithOrder({
+    required QueueOrder order,
+  }) async {
+    try {
+
+      _queue.clear(); // empty queue
+      _queuePreviousTracks.clear();
+
+      // add items to queue
+      for (int itemIndex in (playbackOrder == PlaybackOrder.linear ? _order.linearOrder : _order.shuffledOrder)) {
+        _queue.add(_order.items[itemIndex]);
+      }
+
+      _currentTrack = _queue.removeAt(0);
+      _currentTrackStream.add(_currentTrack!);
+      _queueServiceLogger.info("Current track: '${_currentTrack!.item.title}'");
+
+      _logQueues(message: "after replacing whole queue");
+
+      // start playing first item in queue
+      _queueAudioSourceIndex = 0;
+      _audioHandler.setNextInitialIndex(_queueAudioSourceIndex);
+
+      _queueAudioSource = ConcatenatingAudioSource(
+        children: [],
+        useLazyPreparation: true,
+      );
+      await _queueAudioSource.add(await _mediaItemToAudioSource(_currentTrack!.item));
+
+      for (final queueItem in _queue) {
+        await _queueAudioSource.add(await _mediaItemToAudioSource(queueItem.item));
+      }
+
+      await _audioHandler.initializeAudioSource(_queueAudioSource);
+
+      _audioHandler.queue.add(_queue.map((e) => e.item).toList());
+
+      _queueStream.add(getQueue());
+
+      _audioHandler.mediaItem.add(_currentTrack!.item);
+      _audioHandler.play();
+
+      _audioHandler.nextInitialIndex = null;
+      
+    } catch (e) {
+      _queueServiceLogger.severe(e);
+      return Future.error(e);
+    }
+  }
+
   Future<void> addToQueue(jellyfin_models.BaseItemDto item, QueueItemSource source) async {
     try {
       QueueItem queueItem = QueueItem(
@@ -551,7 +625,17 @@ class QueueService {
 
       // handle enabling loop all when the queue is empty
       if (mode == LoopMode.all && (_queue.length + _queueNextUp.length == 0)) {
-        // _applyLoopQueue();
+        // check if the current track is the last track in the queue
+        if (_queueAudioSourceIndex == _queueAudioSource.sequence.length - 1) {
+          _queueServiceLogger.finer("Current track is the last track in the queue");
+          if (_loopMode == LoopMode.all) {
+            // add first track to _queueAudioSource
+            _mediaItemToAudioSource(_order.items[_playbackOrder == PlaybackOrder.shuffled ? _order.shuffledOrder[0] : _order.linearOrder[0]].item).then((value) {
+              _queueAudioSource.add(value);
+              _queueServiceLogger.finer("Appended looping track to _queueAudioSource");
+            });
+          }
+        }
       } else if (mode == LoopMode.none) {
 
         // update external queues
