@@ -181,7 +181,7 @@ class QueueService {
       for (int i = 0; i < itemList.length; i++) {
         jellyfin_models.BaseItemDto item = itemList[i];
         try {
-          MediaItem mediaItem = await _generateMediaItem(item);
+          MediaItem mediaItem = await generateMediaItem(item);
           newItems.add(QueueItem(
             item: mediaItem,
             source: source,
@@ -239,7 +239,7 @@ class QueueService {
   Future<void> addToQueue(jellyfin_models.BaseItemDto item, QueueItemSource source) async {
     try {
       QueueItem queueItem = QueueItem(
-        item: await _generateMediaItem(item),
+        item: await generateMediaItem(item),
         source: source,
         type: QueueItemQueueType.queue,
       );
@@ -263,7 +263,7 @@ class QueueService {
   Future<void> addNext(jellyfin_models.BaseItemDto item) async {
     try {
       QueueItem queueItem = QueueItem(
-        item: await _generateMediaItem(item),
+        item: await generateMediaItem(item),
         source: QueueItemSource(id: "next-up", name: "Next Up", type: QueueItemSourceType.nextUp),
         type: QueueItemQueueType.nextUp,
       );
@@ -288,7 +288,7 @@ class QueueService {
   Future<void> addToNextUp(jellyfin_models.BaseItemDto item) async {
     try {
       QueueItem queueItem = QueueItem(
-        item: await _generateMediaItem(item),
+        item: await generateMediaItem(item),
         source: QueueItemSource(id: "next-up", name: "Next Up", type: QueueItemSourceType.nextUp),
         type: QueueItemQueueType.nextUp,
       );
@@ -435,7 +435,7 @@ class QueueService {
     
   }
 
-  Future<MediaItem> _generateMediaItem(jellyfin_models.BaseItemDto item) async {
+  Future<MediaItem> generateMediaItem(jellyfin_models.BaseItemDto item) async {
     const uuid = Uuid();
 
     final downloadedSong = _downloadsHelper.getDownloadedSong(item.id);

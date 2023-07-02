@@ -571,6 +571,7 @@ enum QueueItemSourceType {
   nextUp(name: ""),
   formerNextUp(name: ""),
   downloads(name: ""),
+  playbackReporting(name: "Playback Reporting"),
   unknown(name: "");
 
   const QueueItemSourceType({

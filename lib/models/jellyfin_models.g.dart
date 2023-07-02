@@ -4177,6 +4177,39 @@ Map<String, dynamic> _$PlaybackProgressInfoToJson(
       'PlaylistItemId': instance.playlistItemId,
     };
 
+PlaybackReportingQuery _$PlaybackReportingQueryFromJson(Map json) =>
+    PlaybackReportingQuery(
+      userId: json['UserId'] as String,
+      since: DateTime.parse(json['Since'] as String),
+      limit: json['Limit'] as int,
+    );
+
+Map<String, dynamic> _$PlaybackReportingQueryToJson(
+        PlaybackReportingQuery instance) =>
+    <String, dynamic>{
+      'UserId': instance.userId,
+      'Since': instance.since.toIso8601String(),
+      'Limit': instance.limit,
+    };
+
+PlaybackReportingRawResponse _$PlaybackReportingRawResponseFromJson(Map json) =>
+    PlaybackReportingRawResponse(
+      colums:
+          (json['colums'] as List<dynamic>).map((e) => e as String).toList(),
+      results: (json['results'] as List<dynamic>)
+          .map((e) => e as List<dynamic>)
+          .toList(),
+      message: json['message'] as String? ?? "",
+    );
+
+Map<String, dynamic> _$PlaybackReportingRawResponseToJson(
+        PlaybackReportingRawResponse instance) =>
+    <String, dynamic>{
+      'colums': instance.colums,
+      'message': instance.message,
+      'results': instance.results,
+    };
+
 ImageBlurHashes _$ImageBlurHashesFromJson(Map json) => ImageBlurHashes(
       primary: (json['Primary'] as Map?)?.map(
         (k, e) => MapEntry(k as String, e as String),

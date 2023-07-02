@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 
 import 'finamp_user_helper.dart';
 import 'jellyfin_api.dart';
-import '../models/finamp_models.dart';
+import '../models/finamp_models.dart' as finamp_models;
 import '../models/jellyfin_models.dart';
 
 class JellyfinApiHelper {
@@ -134,6 +134,42 @@ class JellyfinApiHelper {
     }
   }
 
+  Future<List<BaseItemDto>?> getItemsByIds({
+    List<String>? itemIds,
+    String? sortBy,
+    String? sortOrder,
+  }) async {
+    final currentUser = _finampUserHelper.currentUser;
+    if (currentUser == null) {
+      // When logging out, this request causes errors since currentUser is
+      // required sometimes. We just return an empty list since this error
+      // usually happens becuase the listeners on MusicScreenTabView update
+      // milliseconds before the page is popped. This shouldn't happen in normal
+      // use.
+      return [];
+    }
+
+    Response response = await jellyfinApi.getItems(
+      userId: currentUser.id,
+      // parentId: parentItem?.id,
+      includeItemTypes: "Audio",
+      recursive: true,
+      ids: itemIds?.join(","),
+      // sortBy: sortBy,
+      // sortOrder: sortOrder,
+      // searchTerm: searchTerm,
+      // filters: filters,
+      // startIndex: startIndex,
+      // limit: limit,
+    );
+
+    if (response.isSuccessful) {
+      return (QueryResult_BaseItemDto.fromJson(response.body).items);
+    } else {
+      return Future.error(response);
+    }
+  }
+
   /// Authenticates a user and saves the login details
   Future<void> authenticateViaName({
     required String username,
@@ -153,7 +189,7 @@ class JellyfinApiHelper {
       AuthenticationResult newUserAuthenticationResult =
           AuthenticationResult.fromJson(response.body);
 
-      FinampUser newUser = FinampUser(
+      finamp_models.FinampUser newUser = finamp_models.FinampUser(
         id: newUserAuthenticationResult.user!.id,
         baseUrl: baseUrlTemp!.toString(),
         accessToken: newUserAuthenticationResult.accessToken!,
@@ -240,6 +276,38 @@ class JellyfinApiHelper {
         await jellyfinApi.playbackStatusStopped(playbackProgressInfo);
 
     if (!response.isSuccessful) {
+      return Future.error(response);
+    }
+  }
+
+  /// Gets the playback history from the Playback Reporting plugin (if installed)
+  Future<PlaybackReportingRawResponse> getPlaybackHistory({
+    required DateTime since,
+    int limit = 250,
+  }) async {
+
+    PlaybackReportingQuery query = PlaybackReportingQuery(
+      userId: _finampUserHelper.currentUser!.id,
+      since: since,
+      limit: limit,
+    );
+
+    print(query.toJson());
+    
+    Response response = await jellyfinApi.getPlaybackHistory(
+      stamp: DateTime.now().millisecondsSinceEpoch,
+      customQuery: query,
+    );
+
+    if (response.isSuccessful) {
+
+      print(response.body);
+
+      PlaybackReportingRawResponse res = PlaybackReportingRawResponse.fromJson(response.body);
+
+      return res;
+      
+    } else {
       return Future.error(response);
     }
   }

@@ -7,7 +7,7 @@
 ///
 /// These classes should be correct with Jellyfin 10.7.5
 
-import 'package:finamp/models/finamp_models.dart';
+import 'package:finamp/models/finamp_models.dart' as finamp_models;
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive/hive.dart';
@@ -3019,6 +3019,66 @@ class PlaybackProgressInfo {
   Map<String, dynamic> toJson() => _$PlaybackProgressInfoToJson(this);
 }
 
+@JsonSerializable(
+  fieldRename: FieldRename.pascal,
+  explicitToJson: true,
+  anyMap: true,
+)
+class PlaybackReportingQuery {
+  PlaybackReportingQuery({
+    required this.userId,
+    required this.since,
+    required this.limit,
+  });
+
+
+  /// Gets or sets the user identifier.
+  String userId;
+
+  /// Gets or sets the maximum date to look back.
+  DateTime since;
+
+  /// Gets or sets the maximum number of records to return.
+  int limit;
+
+  // Map<String, dynamic> toJson() => _$PlaybackReportingQueryToJson(this);
+  Map<String, dynamic> toJson() {
+    return <String, String>{
+      'CustomQueryString': """
+        SELECT ROWID, *
+        FROM PlaybackActivity
+        WHERE ItemType="Audio"
+          AND datetime(DateCreated) >= datetime('${since.toIso8601String()}')
+          AND UserId="$userId"
+        ORDER BY DateCreated ASC
+        LIMIT $limit
+      """
+    };
+  }
+}
+
+@JsonSerializable(
+  fieldRename: FieldRename.none,
+  explicitToJson: true,
+  anyMap: true,
+)
+class PlaybackReportingRawResponse {
+  PlaybackReportingRawResponse({
+    required this.colums,
+    required this.results,
+    this.message = "",
+  });
+
+  List<String> colums; // intentional typo
+
+  String message;
+
+  List<List<dynamic>> results;
+
+  factory PlaybackReportingRawResponse.fromJson(Map<String, dynamic> json) =>
+      _$PlaybackReportingRawResponseFromJson(json);
+}
+
 @HiveType(typeId: 32)
 @JsonSerializable(
   fieldRename: FieldRename.pascal,
@@ -3337,11 +3397,11 @@ enum SortBy {
       _humanReadableLocalisedName(this, context);
 
   /// Name used by Jellyfin in API requests.
-  String jellyfinName(TabContentType contentType) {
+  String jellyfinName(finamp_models.TabContentType contentType) {
     switch (contentType) {
-      case TabContentType.albums:
+      case finamp_models.TabContentType.albums:
         return _jellyfinNameMusicAlbums(this);
-      case TabContentType.songs:
+      case finamp_models.TabContentType.songs:
         return _jellyfinNameSongs(this);
       default:
         return _jellyfinName(this);

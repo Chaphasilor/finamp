@@ -66,6 +66,9 @@ abstract class JellyfinApi extends ChopperService {
     /// to use the root.
     @Query("ParentId") String? parentId,
 
+    /// Comma-separated list of item IDs. Specify this only fetch specific items by id.
+    @Query("Ids") String? ids,
+
     /// Optional. If specified, results will be filtered to include only those
     /// containing the specified album artist id.
     @Query("AlbumArtistIds") String? albumArtistIds,
@@ -189,6 +192,17 @@ abstract class JellyfinApi extends ChopperService {
   @Post(path: "/Sessions/Playing/Stopped")
   Future<dynamic> playbackStatusStopped(
       @Body() PlaybackProgressInfo playbackProgressInfo);
+
+  @FactoryConverter(
+    request: JsonConverter.requestFactory,
+    response: JsonConverter.responseFactory
+  )
+  @Post(path: "/user_usage_stats/submit_custom_query")
+  Future<dynamic> getPlaybackHistory({
+      @Query("stamp") required int stamp,
+      @Body() required PlaybackReportingQuery customQuery,
+  });
+  
 
   @FactoryConverter(
     request: JsonConverter.requestFactory,
@@ -413,7 +427,7 @@ abstract class JellyfinApi extends ChopperService {
         //   return request.copyWith(
         //       headers: {"X-Emby-Authentication": await getAuthHeader()});
         // },
-        HttpLoggingInterceptor(level: Level.none),
+        HttpLoggingInterceptor(level: Level.headers),
       ],
     );
 

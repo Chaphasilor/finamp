@@ -88,6 +88,7 @@ class _$JellyfinApi extends JellyfinApi {
     required String userId,
     String? includeItemTypes,
     String? parentId,
+    String? ids,
     String? albumArtistIds,
     String? artistIds,
     String? albumIds,
@@ -105,6 +106,7 @@ class _$JellyfinApi extends JellyfinApi {
     final Map<String, dynamic> $params = <String, dynamic>{
       'IncludeItemTypes': includeItemTypes,
       'ParentId': parentId,
+      'Ids': ids,
       'AlbumArtistIds': albumArtistIds,
       'ArtistIds': artistIds,
       'AlbumIds': albumIds,
@@ -259,6 +261,28 @@ class _$JellyfinApi extends JellyfinApi {
     return client.send(
       $request,
       requestConverter: JsonConverter.requestFactory,
+    );
+  }
+
+  @override
+  Future<dynamic> getPlaybackHistory({
+    required int stamp,
+    required PlaybackReportingQuery customQuery,
+  }) {
+    final Uri $url = Uri.parse('/user_usage_stats/submit_custom_query');
+    final Map<String, dynamic> $params = <String, dynamic>{'stamp': stamp};
+    final $body = customQuery;
+    final Request $request = Request(
+      'POST',
+      $url,
+      client.baseUrl,
+      body: $body,
+      parameters: $params,
+    );
+    return client.send(
+      $request,
+      requestConverter: JsonConverter.requestFactory,
+      responseConverter: JsonConverter.responseFactory,
     );
   }
 

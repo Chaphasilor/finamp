@@ -18,6 +18,8 @@ class PlaybackHistoryList extends StatelessWidget {
     final playbackHistoryService = GetIt.instance<PlaybackHistoryService>();
     final audioServiceHelper = GetIt.instance<AudioServiceHelper>();
 
+    playbackHistoryService.enrichHistoryFromPlaybackReporting();
+
     List<HistoryItem>? history;
 
     return Scrollbar(

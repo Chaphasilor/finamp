@@ -130,6 +130,74 @@ class PlaybackHistoryService {
     
   }
 
+  Future<bool> enrichHistoryFromPlaybackReporting() async {
+    try {
+
+      final playbackReportingResponse = await _jellyfinApiHelper.getPlaybackHistory(
+        since: DateTime.now().subtract(const Duration(days: 14)),
+      );
+
+      final skipIds = _history.map((e) => e.item.item.id).toList();
+
+      // fetch BaseItemDtos for all items
+      List<jellyfin_models.BaseItemDto>? items = await _jellyfinApiHelper.getItemsByIds(
+        itemIds: 
+          playbackReportingResponse.results
+            .map((e) => e[3] as String) //FIXME properly calculate the index
+            .toSet()
+            .where((e) => !skipIds.contains(e))
+            .toList()
+      );
+
+      return false;
+
+      Map<String, jellyfin_models.BaseItemDto> itemsMap = <String, jellyfin_models.BaseItemDto>{for (var item in items!) item.id: item};
+
+      // convert the response to a list of HistoryItems
+      // List<HistoryItem> historyItems = [];
+
+      List<String> columns = playbackReportingResponse.colums; // intentional typo
+      // generate a map from column name to index
+      Map<String, int> columnMap = {};
+      for (int i = 0; i < columns.length; i++) {
+        columnMap[columns[i]] = i;
+      }
+
+      if (!columnMap.containsKey('ItemId') || !columnMap.containsKey('DateCreated') || !columnMap.containsKey('PlayDuration')) {
+        return false;
+      }
+
+      final playbackHistory = await Future.wait(playbackReportingResponse.results.map((item) async {
+
+        DateTime startTime = DateTime.parse(item[columnMap['DateCreated']!]);
+        return HistoryItem(
+          item: QueueItem(
+            source: QueueItemSource(id: 'unknown', name: 'Playback Reporting', type: QueueItemSourceType.playbackReporting),
+            type: QueueItemQueueType.previousTracks,
+            item: await _queueService.generateMediaItem(itemsMap[item[columnMap['ItemId']!]]!)
+            // id: item[columnMap['ItemId']!],
+          ),
+          startTime: startTime,
+          endTime: startTime.add(Duration(seconds: item[columnMap['PlayDuration']!])),
+        );
+      }).toList());
+
+      List<HistoryItem> newHistory = [];
+      newHistory.addAll(_history);
+      newHistory.addAll(playbackHistory);
+
+      newHistory.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      _history = newHistory;
+
+      return true;
+
+    } catch (e) {
+      _playbackHistoryServiceLogger.severe(e);
+      return Future.error(e);
+    }
+  }
+
   /// Generates PlaybackProgressInfo from current player info.
   jellyfin_models.PlaybackProgressInfo? generatePlaybackProgressInfo({
     bool includeNowPlayingQueue = false,
