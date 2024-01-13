@@ -45,85 +45,133 @@ class _LoginFlowState extends State<LoginFlow> {
           }
         }
       },
-      child: Navigator(
-        key: loginNavigatorKey,
-        initialRoute: LoginSplashPage.routeName,
-        onGenerateRoute: (RouteSettings settings) {
-          Route route;
-
-          Route createRoute(Widget page) => PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) => page,
-                transitionsBuilder:
-                    (context, animation, secondaryAnimation, child) {
-
-                  final pushingNext =
-                      secondaryAnimation.status == AnimationStatus.forward;
-                  final poppingNext =
-                      secondaryAnimation.status == AnimationStatus.reverse;
-                  final pushingOrPoppingNext = pushingNext || poppingNext;
-                  late final Tween<Offset> offsetTween = pushingOrPoppingNext
-                      ? Tween<Offset>(
-                          begin: const Offset(0.0, 0.0),
-                          end: const Offset(-1.0, 0.0))
-                      : Tween<Offset>(
-                          begin: const Offset(1.0, 0.0),
-                          end: const Offset(0.0, 0.0));
-                  late final Animation<Offset> slidingAnimation =
-                      pushingOrPoppingNext
-                          ? offsetTween.animate(secondaryAnimation)
-                          : offsetTween.animate(animation);
-                  return SlideTransition(
-                      position: slidingAnimation, child: child);
-
-                },
-              );
-
-          switch (settings.name) {
-            case LoginSplashPage.routeName:
-              route = createRoute(LoginSplashPage(
-                onGetStartedPressed: () => loginNavigatorKey.currentState!
-                    .pushNamed(LoginServerSelectionPage.routeName),
-              ));
-              break;
-            case LoginServerSelectionPage.routeName:
-              route = createRoute(LoginServerSelectionPage(
-                serverState: serverState,
-                onServerSelected:
-                    (PublicSystemInfoResult server, String baseUrl) {
-                  serverState.selectedServer = server;
-                  serverState.baseUrl = baseUrl;
-                  serverState.clientDiscoveryHandler.dispose();
-                  loginNavigatorKey.currentState!
-                      .pushNamed(LoginUserSelectionPage.routeName);
-                },
-              ));
-              break;
-            case LoginUserSelectionPage.routeName:
-              route = createRoute(LoginUserSelectionPage(
-                serverState: serverState,
-                connectionState: connectionState,
-                onUserSelected: (UserDto? user) {
-                  connectionState.selectedUser = user;
-                  loginNavigatorKey.currentState!
-                      .pushNamed(LoginAuthenticationPage.routeName);
-                },
-              ));
-              break;
-            case LoginAuthenticationPage.routeName:
-              route = createRoute(LoginAuthenticationPage(
-                connectionState: connectionState,
-                onAuthenticated: () {
-                  Navigator.of(context).popAndPushNamed(ViewSelector.routeName);
-                },
-              ));
-              break;
-            default:
-              throw Exception('Invalid route: ${settings.name}');
-          }
-          // return MaterialPageRoute<void>(builder: builder, settings: settings);
-          return route;
+      child: LoginSplashPage(
+        onGetStartedPressed: () {
+          Navigator.of(context).push(PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                LoginServerSelectionPage(
+              serverState: serverState,
+              onServerSelected:
+                  (PublicSystemInfoResult server, String baseUrl) {
+                serverState.selectedServer = server;
+                serverState.baseUrl = baseUrl;
+                serverState.clientDiscoveryHandler.dispose();
+                Navigator.of(context).push(PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                      LoginUserSelectionPage(
+                    serverState: serverState,
+                    connectionState: connectionState,
+                    onUserSelected: (UserDto? user) {
+                      connectionState.selectedUser = user;
+                      Navigator.of(context).push(PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            LoginAuthenticationPage(
+                          connectionState: connectionState,
+                          onAuthenticated: () {
+                            Navigator.of(context).popAndPushNamed(
+                                ViewSelector.routeName);
+                          },
+                        ),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                          return child;
+                        },
+                      ));
+                    },
+                  ),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return child;
+                  },
+                ));
+              },
+            ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return child;
+            },
+          ));
         },
       ),
+      // child: Navigator(
+      //   key: loginNavigatorKey,
+      //   initialRoute: LoginSplashPage.routeName,
+      //   onGenerateRoute: (RouteSettings settings) {
+      //     Route route;
+
+      //     Route createRoute(Widget page) => PageRouteBuilder(
+      //           pageBuilder: (context, animation, secondaryAnimation) => page,
+      //           transitionsBuilder:
+      //               (context, animation, secondaryAnimation, child) {
+
+      //             final pushingNext =
+      //                 secondaryAnimation.status == AnimationStatus.forward;
+      //             final poppingNext =
+      //                 secondaryAnimation.status == AnimationStatus.reverse;
+      //             final pushingOrPoppingNext = pushingNext || poppingNext;
+      //             late final Tween<Offset> offsetTween = pushingOrPoppingNext
+      //                 ? Tween<Offset>(
+      //                     begin: const Offset(0.0, 0.0),
+      //                     end: const Offset(-1.0, 0.0))
+      //                 : Tween<Offset>(
+      //                     begin: const Offset(1.0, 0.0),
+      //                     end: const Offset(0.0, 0.0));
+      //             late final Animation<Offset> slidingAnimation =
+      //                 pushingOrPoppingNext
+      //                     ? offsetTween.animate(secondaryAnimation)
+      //                     : offsetTween.animate(animation);
+      //             return SlideTransition(
+      //                 position: slidingAnimation, child: child);
+
+      //           },
+      //         );
+
+      //     switch (settings.name) {
+      //       case LoginSplashPage.routeName:
+      //         route = createRoute(LoginSplashPage(
+      //           onGetStartedPressed: () => loginNavigatorKey.currentState!
+      //               .pushNamed(LoginServerSelectionPage.routeName),
+      //         ));
+      //         break;
+      //       case LoginServerSelectionPage.routeName:
+      //         route = createRoute(LoginServerSelectionPage(
+      //           serverState: serverState,
+      //           onServerSelected:
+      //               (PublicSystemInfoResult server, String baseUrl) {
+      //             serverState.selectedServer = server;
+      //             serverState.baseUrl = baseUrl;
+      //             serverState.clientDiscoveryHandler.dispose();
+      //             loginNavigatorKey.currentState!
+      //                 .pushNamed(LoginUserSelectionPage.routeName);
+      //           },
+      //         ));
+      //         break;
+      //       case LoginUserSelectionPage.routeName:
+      //         route = createRoute(LoginUserSelectionPage(
+      //           serverState: serverState,
+      //           connectionState: connectionState,
+      //           onUserSelected: (UserDto? user) {
+      //             connectionState.selectedUser = user;
+      //             loginNavigatorKey.currentState!
+      //                 .pushNamed(LoginAuthenticationPage.routeName);
+      //           },
+      //         ));
+      //         break;
+      //       case LoginAuthenticationPage.routeName:
+      //         route = createRoute(LoginAuthenticationPage(
+      //           connectionState: connectionState,
+      //           onAuthenticated: () {
+      //             Navigator.of(context).popAndPushNamed(ViewSelector.routeName);
+      //           },
+      //         ));
+      //         break;
+      //       default:
+      //         throw Exception('Invalid route: ${settings.name}');
+      //     }
+      //     // return MaterialPageRoute<void>(builder: builder, settings: settings);
+      //     return route;
+      //   },
+      // ),
     );
   }
 }
